@@ -1,0 +1,101 @@
+
+temp_safety = 11000
+field_safety = 0.10
+fuel_safety = 0.85
+
+temp_factor = 10
+field_factor = 1000000
+
+function output_max(fuelPercent)
+  return 600000 + (600000 * (6 * fuelPercent))
+end
+field_min = 150000
+
+redstone.setOutput("right",true)
+reactor = peripheral.wrap("back")
+output_gate = peripheral.wrap("flux_gate_0")
+field_gate = peripheral.wrap("flux_gate_1")
+monitor = peripheral.wrap("monitor_1")
+
+output_gate.setSignalLowFlow(0)
+field_gate.setSignalLowFlow(300000)
+--output_gate.setSignalHighFlow(0)
+--field_gate.setSignalHighFlow(300000)
+
+monitor.setCursorBlink(true)
+
+function stat(monitor,name, number, l)
+  monitor.setCursorPos(1,l)
+  monitor.clearLine()
+  monitor.write(name..": "..number)
+end
+
+target_temp = 7500
+target_field = 0.5
+
+iter = 0
+
+while true do 
+
+iter = iter + 1
+
+info = reactor.getReactorInfo()
+temp = info["temperature"]
+field = info["fieldStrength"]
+maxField = info["maxFieldStrength"]
+fieldPercent = field/maxField
+fuelConv = info["fuelConversion"]
+maxFuelConv = info["maxFuelConversion"]
+fuelPercent = fuelConv / maxFuelConv
+
+
+if temp > temp_safety then
+  break
+end
+
+if fieldPercent < field_safety then
+  break
+end
+
+if fuelPercent > fuel_safety then
+  reactor.stopReactor()
+  break
+end
+
+
+temp_error = target_temp - temp
+field_error = target_field - fieldPercent
+
+currentOutPow = output_gate.getSignalHighFlow()
+currentFieldPow = field_gate.getSignalHighFlow()
+
+out_incr = temp_error * temp_factor
+field_incr = field_error * field_factor
+
+if out_incr < 0 then
+ out_incr = out_incr * 1
+end
+
+new_out = math.min(output_max(fuelPercent),currentOutPow + out_incr)
+new_field = math.max(field_min,currentFieldPow + field_incr)
+
+output_gate.setSignalHighFlow(new_out)
+field_gate.setSignalHighFlow(new_field)
+
+stat(monitor,"Temp",temp,1)
+stat(monitor,"Output", info["generationRate"],2)
+stat(monitor,"Field Percentage",fieldPercent,3)
+
+stat(monitor,"Fuel Conversion",fuelPercent,4)
+
+stat(monitor,"out_incr",out_incr,5)
+stat(monitor,"field_incr",field_incr,6)
+
+stat(monitor,"output_setting",output_gate.getSignalHighFlow(),7)
+stat(monitor,"flow_setting",field_gate.getSignalHighFlow(),8)
+stat(monitor, "output_max",output_max(fuelPercent),9)
+os.sleep(2)
+
+end
+
+redstone.setOutput("right",false)
